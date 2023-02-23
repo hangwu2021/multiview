@@ -1,0 +1,8 @@
+%YAML:1.0
+
+# KITTI stereo camera intrinsics 
+camera.fx: 718.856
+camera.fy: 718.856
+camera.cx: 607.1928
+camera.cy: 185.2157
+camera.b: 0.573
