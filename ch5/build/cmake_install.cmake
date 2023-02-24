@@ -1,4 +1,4 @@
-# Install script for directory: /home/ai2/workspace/hang.wu/cplus_test/multiview/ch5
+# Install script for directory: /home/ai2/workspace/hang.wu/multiview/ch5
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/ai2/workspace/hang.wu/cplus_test/multiview/ch5/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/ai2/workspace/hang.wu/multiview/ch5/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

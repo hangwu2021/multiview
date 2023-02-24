@@ -25,9 +25,8 @@ void find_feature_matches(
 );
 
 void pose_estimate_2d2d(
-    const std::vector<cv::KeyPoint>& keypoints_1,
-    const std::vector<cv::KeyPoint>& keypoints_2,
-    const std::vector<cv::DMatch>& matches,
+    const std::vector<cv::Point2d>& points1,
+    const std::vector<cv::Point2d>& points2,
     const cv::Mat& K,
     cv::Mat& R, 
     cv::Mat& t
@@ -35,11 +34,22 @@ void pose_estimate_2d2d(
 
 cv::Point3d pixel2Cam(const cv::Point2d& p, const cv::Mat& K);
 
+void validation(
+    const std::vector<cv::Point2d>& points1, 
+    const std::vector<cv::Point2d>& points2,
+    const cv::Mat& K,
+    const cv::Mat& R, 
+    const cv::Mat& t
+);
+
 /**
  *  MAIN FUNCTION 
 */
 int main(int argc, char* argv[])
 {
+    // 相机内参,TUM Freiburg2
+    cv::Mat K = (cv::Mat_<double>(3, 3) << 718.856, 0, 607.1928, 0, 718.856, 185.2157, 0, 0, 1);
+
     cv::Mat image_left = cv::imread("images/left.png"), image_right = cv::imread("images/right.png");
     if (image_left.data == nullptr || image_right.data == nullptr)
     {
@@ -110,51 +120,57 @@ int main(int argc, char* argv[])
     find_feature_matches(image_left, image_right, keypoints_1, keypoints_2, matches);
     std::cout << "matches.size() = " << matches.size() << std::endl;
 
-    cv::Mat result;
-    cv::drawMatches(image_left, keypoints_1, image_right, keypoints_2, matches, result);
-    cv::imwrite("output/keypoints_left.png", result);
-
-    // 相机内参,TUM Freiburg2
-    cv::Mat K = (cv::Mat_<double>(3, 3) << 718.856, 0, 607.1928, 0, 718.856, 185.2157, 0, 0, 1);
-
-    // estimate transform matrix 
-    cv::Mat R, t;
-    pose_estimate_2d2d(keypoints_1, keypoints_2, matches, K, R, t);
-
-    std::cout << "R = \n" << R << "\nt = \n" << t << std::endl;
-
-    // t^
-    cv::Mat t_x = (cv::Mat_<double>(3, 3) << 0, -t.at<double>(2, 0), t.at<double>(1, 0), 
-                                            t.at<double>(2, 0), 0, -t.at<double>(0, 0), 
-                                            -t.at<double>(1, 0), t.at<double>(0, 0), 0);
-
-    // Validate
-    std::vector<double> errors;
-    for (const cv::DMatch& m : matches)
+    // KeyPoint -> Point2d
+    std::vector<cv::Point2d> points1, points2;
+    for (int i = 0; i < (int)matches.size(); ++i)
     {
-        cv::Point3d pt1 = pixel2Cam(keypoints_1[m.queryIdx].pt, K);
-        cv::Mat y1 = (cv::Mat_<double>(3, 1) << pt1.x, pt1.y, pt1.z);
-        
-        cv::Point3d pt2 = pixel2Cam(keypoints_2[m.trainIdx].pt, K);
-        cv::Mat y2 = (cv::Mat_<double>(3, 1) << pt2.x, pt2.y, pt2.z);
-
-        double e = cv::Mat_<double>(y2.t() * t_x * R * y1)(0, 0);
-        errors.push_back(e);
+        points1.push_back(keypoints_1[matches[i].queryIdx].pt);
+        points2.push_back(keypoints_2[matches[i].trainIdx].pt);
     }
 
-    // Mean and Std
-    double sum = std::accumulate(errors.begin(), errors.end(), 0.0);
-    double mean = sum / errors.size();
-    double stdErr = 0.;
+    cv::Mat result;
+   // cv::drawMatches(image_left, keypoints_1, image_right, keypoints_2, matches, result);
+    //cv::imwrite("output/keypoints_left.png", result);
 
-    double temp = 0.;
-    std::for_each(errors.begin(), errors.end(), [&](const double d){
-        temp += std::pow(d - mean, 2);
-    });
+    // Pixel Depth Filter 
+    std::vector<cv::Point2d> filted_points1, filted_points2;
+   // std::vector<cv::
+    for (int i = 0; i < points1.size(); ++i)
+    {
+        double filted_depth =  (disparity.at<double>(points1[i].y, points1[i].x) > 0 ? disparity.at<double>(points1[i].y, points1[i].x) : 0.001);
+        double meanDepth =   meanDisparity;
+        if (filted_depth > meanDepth && filted_depth < 1000.)
+        {
+            std::cout << "depth = " << filted_depth << "\n";
+            std::cout << "points1: " << points1[i] << std::endl;
+            filted_points1.push_back(points1[i]);
+            filted_points2.push_back(points2[i]);
+        //    filted_matches.push_back(matches[i]);
+            //std::cout << keypoints_1[i].pt.y << ", " << keypoints_1[i].pt.x << ", " << disparity.at<float>(keypoints_1[i].pt.y, keypoints_1[i].pt.x) << std::endl;
+        }
+    }
 
-    stdErr = std::sqrt(temp / (errors.size() - 1));
+    std::cout << "filted_points1.size() = " << filted_points1.size() << std::endl;
+    //std::cout << "filted_matches.size() = " << filted_matches.size() << std::endl;
 
-    std::cout << " epipolar constraint = " << mean << ", " << stdErr << std::endl;
+   // cv::Mat filted_result;
+   // cv::drawMatches(image_left, filted_keypoints1, image_right, filted_keypoints2, filted_matches, filted_result);
+   // cv::imwrite("output/filted_keypoints_left.png", filted_result);
+
+    cv::Mat R, t;
+    bool isFilted = false;
+    if (isFilted)
+    {
+        pose_estimate_2d2d(filted_points1, filted_points2, K, R, t);
+        validation(filted_points1, filted_points2, K, R, t);
+    }
+    else 
+    {
+        pose_estimate_2d2d(points1, points2, K, R, t);
+        validation(points1, points2, K, R, t);
+    }
+    
+    //std::cout << "R = \n" << R << "\nt = \n" << t << std::endl;
 
     return 0;
 }
@@ -210,7 +226,7 @@ void find_feature_matches(
     // Optical KeyPoints
     for (int i = 0; i < descriptors_1.rows; ++i)
     {
-        if (match[i].distance < std::min(min_dist * 20, 30.0))
+        if (match[i].distance < std::min(min_dist * 20, 80.0))
         {
             matches.push_back(match[i]);
         }
@@ -218,22 +234,13 @@ void find_feature_matches(
 }
 
 void pose_estimate_2d2d(
-    const std::vector<cv::KeyPoint>& keypoints_1,
-    const std::vector<cv::KeyPoint>& keypoints_2,
-    const std::vector<cv::DMatch>& matches,
+    const std::vector<cv::Point2d>& points1,
+    const std::vector<cv::Point2d>& points2,
     const cv::Mat& K,
     cv::Mat& R, 
     cv::Mat& t
 )
 {
-    // KeyPoint -> Point2f
-    std::vector<cv::Point2f> points1, points2;
-    for (int i = 0; i < (int)matches.size(); ++i)
-    {
-        points1.push_back(keypoints_1[matches[i].queryIdx].pt);
-        points2.push_back(keypoints_2[matches[i].trainIdx].pt);
-    }
-
     // Essential Matrix 
     cv::Point2d principal_point(K.at<double>(0, 2), K.at<double>(1, 2));
     double focal_length = (K.at<double>(0, 0) + K.at<double>(1, 1)) / 2;
@@ -251,4 +258,46 @@ cv::Point3d pixel2Cam(const cv::Point2d& p, const cv::Mat& K)
         (p.y - K.at<double>(1, 2)) / K.at<double>(1, 1), 
         1.0
     );
+}
+
+void validation(
+    const std::vector<cv::Point2d>& points1, 
+    const std::vector<cv::Point2d>& points2,
+    const cv::Mat& K,
+    const cv::Mat& R, 
+    const cv::Mat& t
+)
+{
+    // t^
+    cv::Mat t_x = (cv::Mat_<double>(3, 3) << 0, -t.at<double>(2, 0), t.at<double>(1, 0), 
+                                            t.at<double>(2, 0), 0, -t.at<double>(0, 0), 
+                                            -t.at<double>(1, 0), t.at<double>(0, 0), 0);
+
+    // error vector
+    std::vector<double> errors;
+    for (int i = 0; i < points1.size(); ++i)
+    {
+        cv::Point3d pt1 = pixel2Cam(points1[i], K);
+        cv::Mat y1 = (cv::Mat_<double>(3, 1) << pt1.x, pt1.y, pt1.z);
+        
+        cv::Point3d pt2 = pixel2Cam(points2[i], K);
+        cv::Mat y2 = (cv::Mat_<double>(3, 1) << pt2.x, pt2.y, pt2.z);
+
+        double e = cv::Mat_<double>(y2.t() * t_x * R * y1)(0, 0);
+        errors.push_back(std::abs(e));
+    }
+
+    // Mean and Std
+    double sum = std::accumulate(errors.begin(), errors.end(), 0.0);
+    double mean = sum / errors.size();
+    double stdErr = 0.;
+
+    double temp = 0.;
+    std::for_each(errors.begin(), errors.end(), [&](const double d){
+        temp += std::pow(d - mean, 2);
+    });
+
+    stdErr = std::sqrt(temp / (errors.size() - 1));
+
+    std::cout << " epipolar constraint = " << mean << ", " << stdErr << std::endl;
 }

@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/ai2/workspace/hang.wu/cplus_test/multiview/ch5/stereo.cpp
+/home/ai2/workspace/hang.wu/multiview/ch5/stereo.cpp
 iostream
 -
 numeric
