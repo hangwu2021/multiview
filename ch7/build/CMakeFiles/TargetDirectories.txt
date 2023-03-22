@@ -1,0 +1,3 @@
+/home/ai2/workspace/hang.wu/multiview/ch7/build/CMakeFiles/rebuild_cache.dir
+/home/ai2/workspace/hang.wu/multiview/ch7/build/CMakeFiles/edit_cache.dir
+/home/ai2/workspace/hang.wu/multiview/ch7/build/CMakeFiles/ch7.dir
